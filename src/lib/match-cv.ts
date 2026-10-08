@@ -1,5 +1,6 @@
 import { zodTextFormat } from "openai/helpers/zod";
-import { getOpenAI, MODEL, ModelRefusalError } from "./llm";
+import { AppError, type Locale } from "./i18n";
+import { getOpenAI, isRefusal, MODEL } from "./llm";
 import { ModelMatchResult, type Requirement, type RequirementMatch } from "./schemas";
 import { verifyMatch } from "./scoring";
 
@@ -30,7 +31,8 @@ export type MatchResult = {
 export async function matchCv(
   cvText: string,
   requirements: Requirement[],
-  language: "sv" | "en",
+  language: Locale,
+  signal?: AbortSignal,
 ): Promise<MatchResult> {
   const started = Date.now();
   const numbered = requirements.map((r, i) => `${i}. [${r.category}] ${r.text}`).join("\n");
@@ -42,18 +44,18 @@ export async function matchCv(
     `<output_language>${language === "sv" ? "Swedish" : "English"}</output_language>`,
   ].join("\n\n");
 
-  const response = await getOpenAI().responses.parse({
-    model: MODEL,
-    instructions: SYSTEM_PROMPT,
-    input,
-    text: { format: zodTextFormat(ModelMatchResult, "cv_match") },
-  });
-
-  const refused = response.output.some(
-    (item) => item.type === "message" && item.content.some((c) => c.type === "refusal"),
+  const response = await getOpenAI().responses.parse(
+    {
+      model: MODEL,
+      instructions: SYSTEM_PROMPT,
+      input,
+      text: { format: zodTextFormat(ModelMatchResult, "cv_match") },
+    },
+    { signal },
   );
-  if (refused) {
-    throw new ModelRefusalError();
+
+  if (isRefusal(response)) {
+    throw new AppError("refusal", 422);
   }
   if (!response.output_parsed) {
     throw new Error(`Could not parse model output (status: ${response.status})`);

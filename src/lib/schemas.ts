@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ErrorCode } from "./i18n";
 
 export const RequirementCategory = z.enum(["must_have", "nice_to_have", "soft_skill"]);
 
@@ -50,13 +51,14 @@ export type RequirementMatch = Omit<z.infer<typeof ModelMatch>, "requirementInde
 export type MatchStatus = z.infer<typeof MatchStatus>;
 export type ModelMatchResult = z.infer<typeof ModelMatchResult>;
 
+// Validation messages are error codes (see i18n.ts) so the UI can translate them.
 export const JobAdText = z
   .string()
   .trim()
-  .min(50, "The job ad is too short. Paste the full ad.")
-  .max(30_000, "The job ad is too long (max 30,000 characters).");
+  .min(50, "ad_too_short" satisfies ErrorCode)
+  .max(30_000, "ad_too_long" satisfies ErrorCode);
 
 export const JobAdUrl = z
   .string()
   .trim()
-  .pipe(z.url({ protocol: /^https?$/, error: "Enter a valid http(s) link to the job ad." }));
+  .pipe(z.url({ protocol: /^https?$/, error: "ad_invalid_url" satisfies ErrorCode }));

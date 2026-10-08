@@ -1,17 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { AppError } from "./i18n";
 
 const TIMEOUT_MS = 10_000;
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
-
-/** Error with a message that is safe to show to the user. */
-export class JobAdFetchError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "JobAdFetchError";
-  }
-}
 
 /** Private, loopback and link-local ranges that a public job ad never lives on. */
 export function isPrivateAddress(ip: string): boolean {
@@ -38,10 +31,10 @@ export function isPrivateAddress(ip: string): boolean {
  */
 async function assertPublicHost(url: URL): Promise<void> {
   const addresses = await lookup(url.hostname, { all: true }).catch(() => {
-    throw new JobAdFetchError("Could not find that website. Check the link.");
+    throw new AppError("fetch_not_found");
   });
   if (addresses.some((a) => isPrivateAddress(a.address))) {
-    throw new JobAdFetchError("That link points to a private address and can't be fetched.");
+    throw new AppError("fetch_private");
   }
 }
 
@@ -67,7 +60,7 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-export async function fetchJobAd(rawUrl: string): Promise<string> {
+export async function fetchJobAd(rawUrl: string, signal?: AbortSignal): Promise<string> {
   let url = new URL(rawUrl);
 
   // Follow redirects manually so every hop is checked against private addresses.
@@ -78,39 +71,36 @@ export async function fetchJobAd(rawUrl: string): Promise<string> {
     try {
       res = await fetch(url, {
         redirect: "manual",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
         headers: { "User-Agent": "JobMatchAI/1.0 (+portfolio project)", Accept: "text/html" },
       });
     } catch {
-      throw new JobAdFetchError("Could not reach the website (timeout or connection error).");
+      throw new AppError("fetch_unreachable");
     }
 
     if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
-      if (hop >= MAX_REDIRECTS) throw new JobAdFetchError("Too many redirects.");
+      if (hop >= MAX_REDIRECTS) throw new AppError("fetch_redirects");
       url = new URL(res.headers.get("location")!, url);
-      if (!/^https?:$/.test(url.protocol)) throw new JobAdFetchError("Unsupported redirect.");
+      if (!/^https?:$/.test(url.protocol)) throw new AppError("fetch_redirects");
       continue;
     }
     if (!res.ok) {
-      throw new JobAdFetchError(
-        `The website answered with an error (${res.status}). Some job sites block automated access; paste the text instead.`,
-      );
+      console.warn("Job ad fetch failed with status", res.status);
+      throw new AppError("fetch_http_error");
     }
 
     const type = res.headers.get("content-type") ?? "";
     if (!/text\/html|text\/plain/.test(type)) {
-      throw new JobAdFetchError("The link doesn't point to a web page.");
+      throw new AppError("fetch_not_html");
     }
     if (Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) {
-      throw new JobAdFetchError("The page is too large.");
+      throw new AppError("fetch_too_large");
     }
 
     const body = await res.text();
     const text = type.includes("html") ? htmlToText(body.slice(0, MAX_BYTES)) : body;
     if (text.length < 200) {
-      throw new JobAdFetchError(
-        "Found almost no text on that page. It may require JavaScript or a login; paste the text instead.",
-      );
+      throw new AppError("fetch_no_text");
     }
     return text.slice(0, 30_000);
   }

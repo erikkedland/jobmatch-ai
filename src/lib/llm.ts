@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { AppError, type ErrorCode } from "./i18n";
 
 /** Model is configurable so evals can compare models without code changes. */
 export const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
@@ -8,51 +9,34 @@ let client: OpenAI | null = null;
 /** Lazily creates the client so a missing key gives a clear error at request time. */
 export function getOpenAI(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
-    throw new MissingApiKeyError();
+    console.error("OPENAI_API_KEY is not set. Add it to .env.local and restart the dev server.");
+    throw new AppError("missing_key", 500);
   }
   client ??= new OpenAI({ timeout: 60_000, maxRetries: 2 });
   return client;
 }
 
-export class MissingApiKeyError extends Error {
-  constructor() {
-    super("OPENAI_API_KEY is not set. Add it to .env.local and restart the dev server.");
-    this.name = "MissingApiKeyError";
-  }
+/** True if the model answered with a refusal instead of the requested output. */
+export function isRefusal(response: OpenAI.Responses.Response): boolean {
+  return response.output.some(
+    (item) => item.type === "message" && item.content.some((c) => c.type === "refusal"),
+  );
 }
 
-/** Raised when the model declines a request. */
-export class ModelRefusalError extends Error {
-  constructor() {
-    super("The AI declined to process this input.");
-    this.name = "ModelRefusalError";
-  }
-}
+/** Maps any error to a translatable code and an HTTP status. */
+export function toAppError(err: unknown): AppError {
+  if (err instanceof AppError) return err;
 
-/** Maps any error from a model call to a status code and a user-safe message. */
-export function toErrorResponse(err: unknown): Response {
-  if (err instanceof MissingApiKeyError) {
-    return Response.json({ error: err.message }, { status: 500 });
-  }
-  if (err instanceof ModelRefusalError) {
-    return Response.json({ error: err.message }, { status: 422 });
-  }
-  if (err instanceof OpenAI.AuthenticationError) {
-    return Response.json({ error: "The server's API key is invalid." }, { status: 500 });
-  }
-  if (err instanceof OpenAI.RateLimitError) {
-    return Response.json(
-      { error: "Too many requests right now. Please wait a minute and try again." },
-      { status: 429 },
-    );
-  }
-  if (err instanceof OpenAI.APIConnectionTimeoutError) {
-    return Response.json({ error: "The AI took too long to respond. Please try again." }, { status: 504 });
-  }
+  const map = (code: ErrorCode, status: number) => new AppError(code, status);
+  // We cancelled it ourselves (another step failed or the user left): not an error.
+  if (err instanceof OpenAI.APIUserAbortError) return map("unknown", 499);
+  if (err instanceof OpenAI.AuthenticationError) return map("auth", 500);
+  if (err instanceof OpenAI.RateLimitError) return map("rate_limit", 429);
+  if (err instanceof OpenAI.APIConnectionTimeoutError) return map("timeout", 504);
   if (err instanceof OpenAI.APIError) {
     console.error("OpenAI API error", err.status, err.message);
-    return Response.json({ error: "The AI service is having problems. Please try again." }, { status: 502 });
+    return map("ai_unavailable", 502);
   }
   console.error("Unexpected error", err);
-  return Response.json({ error: "Something went wrong." }, { status: 500 });
+  return map("unknown", 500);
 }

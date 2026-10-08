@@ -1,5 +1,6 @@
 import { zodTextFormat } from "openai/helpers/zod";
-import { getOpenAI, MODEL, ModelRefusalError } from "./llm";
+import { AppError } from "./i18n";
+import { getOpenAI, isRefusal, MODEL } from "./llm";
 import { JobRequirements } from "./schemas";
 
 const SYSTEM_PROMPT = `You extract requirements from job ads so that a candidate's CV can be matched against them.
@@ -17,21 +18,24 @@ export type ExtractionResult = {
   durationMs: number;
 };
 
-export async function extractRequirements(jobAdText: string): Promise<ExtractionResult> {
+export async function extractRequirements(
+  jobAdText: string,
+  signal?: AbortSignal,
+): Promise<ExtractionResult> {
   const started = Date.now();
 
-  const response = await getOpenAI().responses.parse({
-    model: MODEL,
-    instructions: SYSTEM_PROMPT,
-    input: `<job_ad>\n${jobAdText}\n</job_ad>`,
-    text: { format: zodTextFormat(JobRequirements, "job_requirements") },
-  });
-
-  const refused = response.output.some(
-    (item) => item.type === "message" && item.content.some((c) => c.type === "refusal"),
+  const response = await getOpenAI().responses.parse(
+    {
+      model: MODEL,
+      instructions: SYSTEM_PROMPT,
+      input: `<job_ad>\n${jobAdText}\n</job_ad>`,
+      text: { format: zodTextFormat(JobRequirements, "job_requirements") },
+    },
+    { signal },
   );
-  if (refused) {
-    throw new ModelRefusalError();
+
+  if (isRefusal(response)) {
+    throw new AppError("refusal", 422);
   }
   if (!response.output_parsed) {
     throw new Error(`Could not parse model output (status: ${response.status})`);
