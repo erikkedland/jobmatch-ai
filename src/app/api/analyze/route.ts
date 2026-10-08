@@ -1,17 +1,11 @@
-import { buildContext } from "@/lib/context";
 import type { AnalyzeEvent } from "@/lib/events";
-import { extractRequirements } from "@/lib/extract-requirements";
-import { fetchJobAd } from "@/lib/fetch-job-ad";
-import { AppError, isLocale, messages, type ErrorCode, type Locale, type Step } from "@/lib/i18n";
-import { addUsage, toAppError } from "@/lib/llm";
-import { matchCv } from "@/lib/match-cv";
+import { isLocale, messages, type ErrorCode, type Locale } from "@/lib/i18n";
+import { toAppError } from "@/lib/llm";
 import { MAX_CV_BYTES } from "@/lib/limits";
-import { extractCvText, isPdf } from "@/lib/pdf";
+import { isPdf } from "@/lib/pdf";
+import { runAnalysis } from "@/lib/pipeline";
 import { JobAdText, JobAdUrl } from "@/lib/schemas";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import { computeScore } from "@/lib/scoring";
-import { writeLetter } from "@/lib/write-letter";
-import { writeTips } from "@/lib/write-tips";
 
 // A full analysis (four model calls) usually takes 10–20 s; leave headroom for slow responses.
 export const maxDuration = 60;
@@ -66,7 +60,13 @@ export async function POST(request: Request) {
       };
 
       try {
-        await analyze({ cv, jobAd: jobAd.data, isUrl: Boolean(url), locale, send, signal: abort.signal });
+        await runAnalysis({
+          cv: { pdf: new Uint8Array(await cv.arrayBuffer()) },
+          jobAd: url ? { url: jobAd.data } : { text: jobAd.data },
+          locale,
+          send,
+          signal: abort.signal,
+        });
       } catch (err) {
         send({ type: "error", code: toAppError(err).code });
         abort.abort();
@@ -85,76 +85,5 @@ export async function POST(request: Request) {
 
   return new Response(stream, {
     headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" },
-  });
-}
-
-async function analyze(opts: {
-  cv: File;
-  jobAd: string;
-  isUrl: boolean;
-  locale: Locale;
-  send: (event: AnalyzeEvent) => void;
-  signal: AbortSignal;
-}) {
-  const { send, signal } = opts;
-  const started = Date.now();
-
-  /** Wraps a step so the UI sees when it starts and finishes. */
-  async function step<T>(name: Step, fn: () => Promise<T>): Promise<T> {
-    send({ type: "step", step: name, status: "start" });
-    const result = await fn();
-    send({ type: "step", step: name, status: "done" });
-    return result;
-  }
-
-  // Reading the CV and preparing the job ad are independent, so run them in parallel.
-  const [cv, extraction] = await Promise.all([
-    step("reading_cv", async () => extractCvText(new Uint8Array(await opts.cv.arrayBuffer()))),
-    (async () => {
-      const adText = opts.isUrl
-        ? await step("fetching_ad", () => fetchJobAd(opts.jobAd, signal))
-        : opts.jobAd;
-      return step("extracting", () => extractRequirements(adText, signal));
-    })(),
-  ]);
-
-  const job = extraction.data;
-  if (job.requirements.length === 0) throw new AppError("no_requirements", 422);
-  send({ type: "requirements", job });
-
-  // From here on, every call starts with the same CV + job prefix (cacheable).
-  const context = buildContext(cv.text, job);
-
-  const match = await step("matching", () =>
-    matchCv(context, cv.text, job.requirements, opts.locale, signal),
-  );
-  send({
-    type: "result",
-    result: {
-      score: computeScore(job.requirements, match.matches),
-      summary: match.summary,
-      matches: match.matches,
-    },
-  });
-
-  // Tips and the letter both build on the verified matches but not on each other.
-  const [tips, letter] = await step("writing", () =>
-    Promise.all([
-      writeTips(context, job.requirements, match.matches, opts.locale, signal).then((r) => {
-        send({ type: "tips", tips: r.tips });
-        return r;
-      }),
-      writeLetter(context, job, match.matches, (text) => send({ type: "letter_delta", text }), signal),
-    ]),
-  );
-
-  const usage = [match.usage, tips.usage, letter.usage].reduce(addUsage, extraction.usage);
-  send({
-    type: "done",
-    stats: {
-      durationMs: Date.now() - started,
-      ...usage,
-      unverifiedClaims: match.matches.filter((m) => !m.verified).length,
-    },
   });
 }

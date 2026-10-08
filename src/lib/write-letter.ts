@@ -22,6 +22,8 @@ Guidelines:
 - Open with why this specific role${job.company ? ` at ${job.company}` : ""} fits the candidate, not with "I am writing to apply".
 - Build the middle around the strongest "met" requirements, using concrete details from the CV.
 - Do not claim anything marked "gap". If a must-have is a gap, you may briefly and honestly show willingness to learn it, but never pretend to have it.
+- For "partial" requirements, describe exactly what the CV shows and nothing more. Never upgrade it: no added years, seniority, production use or "experience" when the CV only shows a course.
+- Only state years, numbers and results that appear in the CV.
 - Sign off with the candidate's name if it appears in the CV.`;
 
 /** Streams the letter text through onDelta as it is generated. */

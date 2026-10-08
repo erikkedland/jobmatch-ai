@@ -9,7 +9,7 @@ const matchTask = (locale: Locale) => `Task: assess how well the CV matches each
 
 For every requirement, decide:
 - "met": the CV clearly demonstrates it.
-- "partial": the CV shows something closely related or a weaker level (e.g. "basics", a course instead of work experience).
+- "partial": the CV shows something closely related or a weaker level. This includes: "basic" knowledge; skills known only from courses, certifications, education or hobby projects when the requirement asks for (professional) experience; fewer years than required; a different but related tool.
 - "gap": the CV contains no evidence for it.
 
 Evidence rules (these are checked automatically and violations are discarded):
