@@ -6,7 +6,7 @@ An AI agent that matches your CV against a job ad, backed by quoted evidence fro
 
 ## Getting started
 
-Requirements: Node.js 20+ and an [Anthropic API key](https://console.anthropic.com/settings/keys).
+Requirements: Node.js 20+ and an [OpenAI API key](https://platform.openai.com/api-keys).
 
 ```bash
 npm install
@@ -22,4 +22,4 @@ Open http://localhost:3000.
 - **Tailwind CSS**: styling
 - **unpdf**: server-side PDF text extraction
 - **Zod**: runtime validation of AI output
-- **Claude API**: requirement extraction, matching and writing
+- **OpenAI Responses API**: requirement extraction, matching and writing

@@ -1,10 +1,25 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import type { ExtractionResult } from "@/lib/extract-requirements";
+import type { Requirement } from "@/lib/schemas";
 
 type JobAdMode = "text" | "url";
 
 type ParsedCv = { text: string; pages: number; chars: number };
+
+const CATEGORY_LABELS: Record<Requirement["category"], string> = {
+  must_have: "Must have",
+  nice_to_have: "Nice to have",
+  soft_skill: "Soft skills",
+};
+
+async function postJson<T>(url: string, init: RequestInit): Promise<T> {
+  const res = await fetch(url, { method: "POST", ...init });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Unknown error");
+  return data;
+}
 
 export default function Home() {
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -12,6 +27,7 @@ export default function Home() {
   const [jobAdText, setJobAdText] = useState("");
   const [jobAdUrl, setJobAdUrl] = useState("");
   const [parsedCv, setParsedCv] = useState<ParsedCv | null>(null);
+  const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,14 +42,26 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setParsedCv(null);
+    setExtraction(null);
 
     try {
-      const body = new FormData();
-      body.append("cv", cvFile);
-      const res = await fetch("/api/parse-cv", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Unknown error");
-      setParsedCv(data);
+      if (jobAdMode === "url") {
+        throw new Error("Fetching job ads from a URL is coming in phase 3. Paste the text for now.");
+      }
+
+      const cvForm = new FormData();
+      cvForm.append("cv", cvFile);
+
+      // The CV and the job ad are independent, so process them in parallel.
+      const [cv, requirements] = await Promise.all([
+        postJson<ParsedCv>("/api/parse-cv", { body: cvForm }),
+        postJson<ExtractionResult>("/api/extract-requirements", {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobAdText }),
+        }),
+      ]);
+      setParsedCv(cv);
+      setExtraction(requirements);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -114,7 +142,7 @@ export default function Home() {
           disabled={!canSubmit}
           className="w-full rounded-md bg-zinc-900 px-4 py-3 font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
-          {loading ? "Reading CV…" : "Analyze match"}
+          {loading ? "Analyzing…" : "Analyze match"}
         </button>
       </form>
 
@@ -122,6 +150,38 @@ export default function Home() {
         <p role="alert" className="mt-6 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
           {error}
         </p>
+      )}
+
+      {extraction && (
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold">
+            {extraction.data.jobTitle}
+            {extraction.data.company && (
+              <span className="font-normal text-zinc-500"> · {extraction.data.company}</span>
+            )}
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {(Object.keys(CATEGORY_LABELS) as Requirement["category"][]).map((category) => {
+              const items = extraction.data.requirements.filter((r) => r.category === category);
+              return (
+                <div key={category} className="rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+                  <h3 className="text-sm font-medium text-zinc-500">
+                    {CATEGORY_LABELS[category]} ({items.length})
+                  </h3>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {items.map((r) => (
+                      <li key={r.text}>• {r.text}</li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">
+            {extraction.usage.inputTokens + extraction.usage.outputTokens} tokens ·{" "}
+            {(extraction.durationMs / 1000).toFixed(1)} s
+          </p>
+        </section>
       )}
 
       {parsedCv && (
@@ -132,7 +192,7 @@ export default function Home() {
           <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
             {parsedCv.text}
           </pre>
-          <p className="mt-2 text-sm text-zinc-500">The AI analysis is coming in phase 2.</p>
+          <p className="mt-2 text-sm text-zinc-500">Matching against the CV is coming in phase 3.</p>
         </section>
       )}
     </main>
