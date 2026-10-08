@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { ExtractionResult } from "@/lib/extract-requirements";
-import type { Requirement } from "@/lib/schemas";
+import type { AnalyzeResponse } from "@/app/api/analyze/route";
+import type { MatchStatus, Requirement } from "@/lib/schemas";
 
 type JobAdMode = "text" | "url";
-
-type ParsedCv = { text: string; pages: number; chars: number };
 
 const CATEGORY_LABELS: Record<Requirement["category"], string> = {
   must_have: "Must have",
@@ -14,11 +12,16 @@ const CATEGORY_LABELS: Record<Requirement["category"], string> = {
   soft_skill: "Soft skills",
 };
 
-async function postJson<T>(url: string, init: RequestInit): Promise<T> {
-  const res = await fetch(url, { method: "POST", ...init });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Unknown error");
-  return data;
+const STATUS_STYLES: Record<MatchStatus, { label: string; className: string }> = {
+  met: { label: "Met", className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
+  partial: { label: "Partial", className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+  gap: { label: "Gap", className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
+};
+
+function scoreColor(score: number) {
+  if (score >= 70) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 40) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 export default function Home() {
@@ -26,8 +29,7 @@ export default function Home() {
   const [jobAdMode, setJobAdMode] = useState<JobAdMode>("text");
   const [jobAdText, setJobAdText] = useState("");
   const [jobAdUrl, setJobAdUrl] = useState("");
-  const [parsedCv, setParsedCv] = useState<ParsedCv | null>(null);
-  const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
+  const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,27 +43,18 @@ export default function Home() {
 
     setLoading(true);
     setError(null);
-    setParsedCv(null);
-    setExtraction(null);
+    setResult(null);
 
     try {
-      if (jobAdMode === "url") {
-        throw new Error("Fetching job ads from a URL is coming in phase 3. Paste the text for now.");
-      }
+      const body = new FormData();
+      body.append("cv", cvFile);
+      if (jobAdMode === "text") body.append("jobAdText", jobAdText);
+      else body.append("jobAdUrl", jobAdUrl);
 
-      const cvForm = new FormData();
-      cvForm.append("cv", cvFile);
-
-      // The CV and the job ad are independent, so process them in parallel.
-      const [cv, requirements] = await Promise.all([
-        postJson<ParsedCv>("/api/parse-cv", { body: cvForm }),
-        postJson<ExtractionResult>("/api/extract-requirements", {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobAdText }),
-        }),
-      ]);
-      setParsedCv(cv);
-      setExtraction(requirements);
+      const res = await fetch("/api/analyze", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Unknown error");
+      setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -142,7 +135,7 @@ export default function Home() {
           disabled={!canSubmit}
           className="w-full rounded-md bg-zinc-900 px-4 py-3 font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
-          {loading ? "Analyzing…" : "Analyze match"}
+          {loading ? "Analyzing… (10–20 s)" : "Analyze match"}
         </button>
       </form>
 
@@ -152,49 +145,68 @@ export default function Home() {
         </p>
       )}
 
-      {extraction && (
-        <section className="mt-8">
-          <h2 className="text-xl font-semibold">
-            {extraction.data.jobTitle}
-            {extraction.data.company && (
-              <span className="font-normal text-zinc-500"> · {extraction.data.company}</span>
-            )}
-          </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            {(Object.keys(CATEGORY_LABELS) as Requirement["category"][]).map((category) => {
-              const items = extraction.data.requirements.filter((r) => r.category === category);
-              return (
-                <div key={category} className="rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
-                  <h3 className="text-sm font-medium text-zinc-500">
-                    {CATEGORY_LABELS[category]} ({items.length})
-                  </h3>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {items.map((r) => (
-                      <li key={r.text}>• {r.text}</li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-zinc-500">
-            {extraction.usage.inputTokens + extraction.usage.outputTokens} tokens ·{" "}
-            {(extraction.durationMs / 1000).toFixed(1)} s
-          </p>
-        </section>
-      )}
-
-      {parsedCv && (
-        <section className="mt-8">
-          <h2 className="font-medium">
-            CV text extracted ({parsedCv.pages} {parsedCv.pages === 1 ? "page" : "pages"},{" "}{parsedCv.chars.toLocaleString()} characters)
-          </h2>
-          <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900">
-            {parsedCv.text}
-          </pre>
-          <p className="mt-2 text-sm text-zinc-500">Matching against the CV is coming in phase 3.</p>
-        </section>
-      )}
+      {result && <Results result={result} />}
     </main>
+  );
+}
+
+function Results({ result }: { result: AnalyzeResponse }) {
+  const { job, matches, score, summary, stats } = result;
+  const indexed = job.requirements.map((req, i) => ({ req, match: matches[i] }));
+
+  return (
+    <section className="mt-10 space-y-8">
+      <div className="flex items-center gap-6 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+        <div className={`text-5xl font-bold tabular-nums ${scoreColor(score)}`}>{score}</div>
+        <div>
+          <h2 className="text-lg font-semibold">
+            {job.jobTitle}
+            {job.company && <span className="font-normal text-zinc-500"> · {job.company}</span>}
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{summary}</p>
+        </div>
+      </div>
+
+      {(Object.keys(CATEGORY_LABELS) as Requirement["category"][]).map((category) => {
+        const items = indexed.filter(({ req }) => req.category === category);
+        if (items.length === 0) return null;
+        return (
+          <div key={category}>
+            <h3 className="mb-2 text-sm font-medium uppercase tracking-wide text-zinc-500">
+              {CATEGORY_LABELS[category]}
+            </h3>
+            <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+              {items.map(({ req, match }) => (
+                <li key={req.text} className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="font-medium">{req.text}</span>
+                    <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[match.status].className}`}>
+                      {STATUS_STYLES[match.status].label}
+                    </span>
+                  </div>
+                  {match.evidence && (
+                    <blockquote className="mt-2 border-l-2 border-zinc-300 pl-3 text-sm italic text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
+                      “{match.evidence}”
+                    </blockquote>
+                  )}
+                  <p className="mt-1 text-sm text-zinc-500">{match.explanation}</p>
+                  {!match.verified && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      ⚠ The AI cited evidence that isn&apos;t in your CV, so this was marked as a gap.
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+
+      <p className="text-xs text-zinc-500">
+        {(stats.durationMs / 1000).toFixed(1)} s · {stats.inputTokens + stats.outputTokens} tokens
+        {stats.cachedTokens > 0 && ` (${stats.cachedTokens} cached)`} · {stats.unverifiedClaims} unverified
+        claims rejected
+      </p>
+    </section>
   );
 }
