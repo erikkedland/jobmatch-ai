@@ -1,18 +1,19 @@
 import type { ErrorCode, Step } from "./i18n";
-import type { JobRequirements, RequirementMatch } from "./schemas";
+import type { CvTip, JobRequirements, RequirementMatch } from "./schemas";
 
 export type AnalysisResult = {
   score: number;
   summary: string;
   matches: RequirementMatch[];
-  stats: {
-    durationMs: number;
-    inputTokens: number;
-    cachedTokens: number;
-    outputTokens: number;
-    /** How many claims the model made that our quote check rejected. */
-    unverifiedClaims: number;
-  };
+};
+
+export type AnalysisStats = {
+  durationMs: number;
+  inputTokens: number;
+  cachedTokens: number;
+  outputTokens: number;
+  /** How many claims the model made that our quote check rejected. */
+  unverifiedClaims: number;
 };
 
 /** Events streamed from /api/analyze as newline-delimited JSON (NDJSON). */
@@ -20,6 +21,9 @@ export type AnalyzeEvent =
   | { type: "step"; step: Step; status: "start" | "done" }
   | { type: "requirements"; job: JobRequirements }
   | { type: "result"; result: AnalysisResult }
+  | { type: "tips"; tips: CvTip[] }
+  | { type: "letter_delta"; text: string }
+  | { type: "done"; stats: AnalysisStats }
   | { type: "error"; code: ErrorCode };
 
 /** Reads an NDJSON response body and yields one parsed event per line. */

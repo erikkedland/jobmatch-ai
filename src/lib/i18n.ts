@@ -30,7 +30,7 @@ export type ErrorCode =
   | "ai_unavailable"
   | "unknown";
 
-export type Step = "reading_cv" | "fetching_ad" | "extracting" | "matching";
+export type Step = "reading_cv" | "fetching_ad" | "extracting" | "matching" | "writing";
 
 type Dictionary = {
   tagline: string;
@@ -45,6 +45,11 @@ type Dictionary = {
   statuses: Record<"met" | "partial" | "gap", string>;
   steps: Record<Step, string>;
   pending: string;
+  tipsTitle: string;
+  letterTitle: string;
+  letterNote: string;
+  copy: string;
+  copied: string;
   unverified: string;
   stats: (p: { seconds: string; tokens: number; cached: number; rejected: number }) => string;
   errors: Record<ErrorCode, string>;
@@ -68,8 +73,14 @@ export const messages: Record<Locale, Dictionary> = {
       fetching_ad: "Fetching the job ad",
       extracting: "Finding the requirements",
       matching: "Matching requirements against your CV",
+      writing: "Writing CV tips and a cover letter",
     },
     pending: "Checking…",
+    tipsTitle: "How to improve your CV for this job",
+    letterTitle: "Cover letter draft",
+    letterNote: "A starting point: read it through and make it your own before sending.",
+    copy: "Copy",
+    copied: "Copied!",
     unverified: "⚠ The AI cited evidence that isn't in your CV, so this was marked as a gap.",
     stats: ({ seconds, tokens, cached, rejected }) =>
       `${seconds} s · ${tokens} tokens${cached ? ` (${cached} cached)` : ""} · ${rejected} unverified claims rejected`,
@@ -123,8 +134,14 @@ export const messages: Record<Locale, Dictionary> = {
       fetching_ad: "Hämtar jobbannonsen",
       extracting: "Hittar kraven",
       matching: "Matchar kraven mot ditt CV",
+      writing: "Skriver CV-tips och ett personligt brev",
     },
     pending: "Kontrollerar…",
+    tipsTitle: "Så kan du förbättra ditt CV för jobbet",
+    letterTitle: "Utkast till personligt brev",
+    letterNote: "En startpunkt: läs igenom och gör brevet till ditt eget innan du skickar det.",
+    copy: "Kopiera",
+    copied: "Kopierat!",
     unverified: "⚠ AI:n citerade något som inte finns i ditt CV, så kravet markerades som saknat.",
     stats: ({ seconds, tokens, cached, rejected }) =>
       `${seconds} s · ${tokens} tokens${cached ? ` (${cached} cachade)` : ""} · ${rejected} overifierade påståenden avvisade`,

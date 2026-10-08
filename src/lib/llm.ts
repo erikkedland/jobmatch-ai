@@ -16,6 +16,26 @@ export function getOpenAI(): OpenAI {
   return client;
 }
 
+export type Usage = { inputTokens: number; cachedTokens: number; outputTokens: number };
+
+export const EMPTY_USAGE: Usage = { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
+
+export function usageOf(response: OpenAI.Responses.Response): Usage {
+  return {
+    inputTokens: response.usage?.input_tokens ?? 0,
+    cachedTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+  };
+}
+
+export function addUsage(a: Usage, b: Usage): Usage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    cachedTokens: a.cachedTokens + b.cachedTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+  };
+}
+
 /** True if the model answered with a refusal instead of the requested output. */
 export function isRefusal(response: OpenAI.Responses.Response): boolean {
   return response.output.some(

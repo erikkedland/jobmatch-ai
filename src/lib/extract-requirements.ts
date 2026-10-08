@@ -1,6 +1,6 @@
 import { zodTextFormat } from "openai/helpers/zod";
 import { AppError } from "./i18n";
-import { getOpenAI, isRefusal, MODEL } from "./llm";
+import { getOpenAI, isRefusal, MODEL, usageOf, type Usage } from "./llm";
 import { JobRequirements } from "./schemas";
 
 const SYSTEM_PROMPT = `You extract requirements from job ads so that a candidate's CV can be matched against them.
@@ -14,16 +14,13 @@ Rules:
 
 export type ExtractionResult = {
   data: JobRequirements;
-  usage: { inputTokens: number; outputTokens: number };
-  durationMs: number;
+  usage: Usage;
 };
 
 export async function extractRequirements(
   jobAdText: string,
   signal?: AbortSignal,
 ): Promise<ExtractionResult> {
-  const started = Date.now();
-
   const response = await getOpenAI().responses.parse(
     {
       model: MODEL,
@@ -41,12 +38,5 @@ export async function extractRequirements(
     throw new Error(`Could not parse model output (status: ${response.status})`);
   }
 
-  return {
-    data: response.output_parsed,
-    usage: {
-      inputTokens: response.usage?.input_tokens ?? 0,
-      outputTokens: response.usage?.output_tokens ?? 0,
-    },
-    durationMs: Date.now() - started,
-  };
+  return { data: response.output_parsed, usage: usageOf(response) };
 }

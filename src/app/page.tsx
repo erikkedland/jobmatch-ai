@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { readEvents, type AnalysisResult } from "@/lib/events";
+import { readEvents, type AnalysisResult, type AnalysisStats } from "@/lib/events";
 import { LOCALES, messages, type ErrorCode, type Step } from "@/lib/i18n";
-import type { JobRequirements, MatchStatus, Requirement } from "@/lib/schemas";
+import type { CvTip, JobRequirements, MatchStatus, Requirement } from "@/lib/schemas";
 import { useLocale } from "@/lib/use-locale";
 
 type JobAdMode = "text" | "url";
@@ -34,6 +34,9 @@ export default function Home() {
   const [steps, setSteps] = useState<Partial<Record<Step, StepState>>>({});
   const [job, setJob] = useState<JobRequirements | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [tips, setTips] = useState<CvTip[] | null>(null);
+  const [letter, setLetter] = useState("");
+  const [stats, setStats] = useState<AnalysisStats | null>(null);
   const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -50,6 +53,9 @@ export default function Home() {
     setSteps({});
     setJob(null);
     setResult(null);
+    setTips(null);
+    setLetter("");
+    setStats(null);
 
     try {
       const body = new FormData();
@@ -69,6 +75,9 @@ export default function Home() {
         if (ev.type === "step") setSteps((s) => ({ ...s, [ev.step]: ev.status === "start" ? "active" : "done" }));
         else if (ev.type === "requirements") setJob(ev.job);
         else if (ev.type === "result") setResult(ev.result);
+        else if (ev.type === "tips") setTips(ev.tips);
+        else if (ev.type === "letter_delta") setLetter((l) => l + ev.text);
+        else if (ev.type === "done") setStats(ev.stats);
         else if (ev.type === "error") setErrorCode(ev.code);
       }
     } catch {
@@ -80,8 +89,8 @@ export default function Home() {
 
   const visibleSteps: Step[] =
     jobAdMode === "url"
-      ? ["reading_cv", "fetching_ad", "extracting", "matching"]
-      : ["reading_cv", "extracting", "matching"];
+      ? ["reading_cv", "fetching_ad", "extracting", "matching", "writing"]
+      : ["reading_cv", "extracting", "matching", "writing"];
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
@@ -174,7 +183,7 @@ export default function Home() {
         </button>
       </form>
 
-      {Object.keys(steps).length > 0 && !result && !errorCode && (
+      {Object.keys(steps).length > 0 && !stats && !errorCode && (
         <ol className="mt-8 space-y-2 text-sm" aria-live="polite">
           {visibleSteps.map((s) => (
             <li key={s} className="flex items-center gap-3">
@@ -192,6 +201,18 @@ export default function Home() {
       )}
 
       {job && <Results job={job} result={result} t={t} />}
+      {tips && <Tips tips={tips} t={t} />}
+      {letter && <Letter letter={letter} done={stats !== null || errorCode !== null} t={t} />}
+      {stats && (
+        <p className="mt-8 text-xs text-zinc-500">
+          {t.stats({
+            seconds: (stats.durationMs / 1000).toFixed(1),
+            tokens: stats.inputTokens + stats.outputTokens,
+            cached: stats.cachedTokens,
+            rejected: stats.unverifiedClaims,
+          })}
+        </p>
+      )}
     </main>
   );
 }
@@ -258,16 +279,61 @@ function Results({ job, result, t }: { job: JobRequirements; result: AnalysisRes
         );
       })}
 
-      {result && (
-        <p className="text-xs text-zinc-500">
-          {t.stats({
-            seconds: (result.stats.durationMs / 1000).toFixed(1),
-            tokens: result.stats.inputTokens + result.stats.outputTokens,
-            cached: result.stats.cachedTokens,
-            rejected: result.stats.unverifiedClaims,
-          })}
-        </p>
-      )}
+    </section>
+  );
+}
+
+function Tips({ tips, t }: { tips: CvTip[]; t: Dict }) {
+  return (
+    <section className="mt-10">
+      <h2 className="mb-3 text-lg font-semibold">{t.tipsTitle}</h2>
+      <ol className="space-y-3">
+        {tips.map((tip, i) => (
+          <li key={i} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <p className="font-medium">
+              {i + 1}. {tip.title}
+            </p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{tip.detail}</p>
+            {tip.requirement && <p className="mt-2 text-xs text-zinc-500">→ {tip.requirement}</p>}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function Letter({ letter, done, t }: { letter: string; done: boolean; t: Dict }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(letter);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can be blocked; the text is still selectable.
+    }
+  }
+
+  return (
+    <section className="mt-10">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold">{t.letterTitle}</h2>
+        {done && (
+          <button
+            type="button"
+            onClick={copy}
+            className="rounded-md border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            {copied ? t.copied : t.copy}
+          </button>
+        )}
+      </div>
+      <div className="whitespace-pre-wrap rounded-lg border border-zinc-200 p-5 text-sm leading-relaxed dark:border-zinc-800">
+        {letter}
+        {!done && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-zinc-400 align-middle" />}
+      </div>
+      <p className="mt-2 text-xs text-zinc-500">{t.letterNote}</p>
     </section>
   );
 }

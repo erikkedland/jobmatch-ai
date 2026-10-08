@@ -1,12 +1,15 @@
+import { buildContext } from "@/lib/context";
 import type { AnalyzeEvent } from "@/lib/events";
 import { extractRequirements } from "@/lib/extract-requirements";
 import { fetchJobAd } from "@/lib/fetch-job-ad";
 import { AppError, isLocale, messages, type ErrorCode, type Locale, type Step } from "@/lib/i18n";
-import { toAppError } from "@/lib/llm";
+import { addUsage, toAppError } from "@/lib/llm";
 import { matchCv } from "@/lib/match-cv";
 import { extractCvText } from "@/lib/pdf";
 import { JobAdText, JobAdUrl } from "@/lib/schemas";
 import { computeScore } from "@/lib/scoring";
+import { writeLetter } from "@/lib/write-letter";
+import { writeTips } from "@/lib/write-tips";
 
 function errorResponse(code: ErrorCode, status = 400) {
   return Response.json({ code, error: messages.en.errors[code] }, { status });
@@ -97,25 +100,43 @@ async function analyze(opts: {
     })(),
   ]);
 
-  const { requirements } = extraction.data;
-  if (requirements.length === 0) throw new AppError("no_requirements", 422);
-  send({ type: "requirements", job: extraction.data });
+  const job = extraction.data;
+  if (job.requirements.length === 0) throw new AppError("no_requirements", 422);
+  send({ type: "requirements", job });
 
-  const match = await step("matching", () => matchCv(cv.text, requirements, opts.locale, signal));
+  // From here on, every call starts with the same CV + job prefix (cacheable).
+  const context = buildContext(cv.text, job);
 
+  const match = await step("matching", () =>
+    matchCv(context, cv.text, job.requirements, opts.locale, signal),
+  );
   send({
     type: "result",
     result: {
-      score: computeScore(requirements, match.matches),
+      score: computeScore(job.requirements, match.matches),
       summary: match.summary,
       matches: match.matches,
-      stats: {
-        durationMs: Date.now() - started,
-        inputTokens: extraction.usage.inputTokens + match.usage.inputTokens,
-        cachedTokens: match.usage.cachedTokens,
-        outputTokens: extraction.usage.outputTokens + match.usage.outputTokens,
-        unverifiedClaims: match.matches.filter((m) => !m.verified).length,
-      },
+    },
+  });
+
+  // Tips and the letter both build on the verified matches but not on each other.
+  const [tips, letter] = await step("writing", () =>
+    Promise.all([
+      writeTips(context, job.requirements, match.matches, opts.locale, signal).then((r) => {
+        send({ type: "tips", tips: r.tips });
+        return r;
+      }),
+      writeLetter(context, job, match.matches, (text) => send({ type: "letter_delta", text }), signal),
+    ]),
+  );
+
+  const usage = [match.usage, tips.usage, letter.usage].reduce(addUsage, extraction.usage);
+  send({
+    type: "done",
+    stats: {
+      durationMs: Date.now() - started,
+      ...usage,
+      unverifiedClaims: match.matches.filter((m) => !m.verified).length,
     },
   });
 }

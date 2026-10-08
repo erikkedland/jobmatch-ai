@@ -48,6 +48,20 @@ export type RequirementMatch = Omit<z.infer<typeof ModelMatch>, "requirementInde
   verified: boolean;
 };
 
+export const CvTips = z.object({
+  tips: z.array(
+    z.object({
+      title: z.string().describe("Short imperative headline, e.g. 'Show your React work at Acme'."),
+      detail: z.string().describe("1–2 sentences: what to change in the CV and why it matters for this job."),
+      requirement: z
+        .string()
+        .nullable()
+        .describe("The job requirement this tip addresses, verbatim from the list, or null."),
+    }),
+  ),
+});
+
+export type CvTip = z.infer<typeof CvTips>["tips"][number];
 export type MatchStatus = z.infer<typeof MatchStatus>;
 export type ModelMatchResult = z.infer<typeof ModelMatchResult>;
 
