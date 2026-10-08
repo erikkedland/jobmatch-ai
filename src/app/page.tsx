@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { DEMO_CV_NAME, DEMO_CV_URL, DEMO_JOB_AD } from "@/lib/demo";
 import { readEvents, type AnalysisResult, type AnalysisStats } from "@/lib/events";
 import { LOCALES, messages, type ErrorCode, type Step } from "@/lib/i18n";
 import type { CvTip, JobRequirements, MatchStatus, Requirement } from "@/lib/schemas";
+import { MAX_CV_BYTES } from "@/lib/limits";
 import { useLocale } from "@/lib/use-locale";
 
 type JobAdMode = "text" | "url";
@@ -44,9 +46,14 @@ export default function Home() {
     jobAdMode === "text" ? jobAdText.trim().length > 0 : jobAdUrl.trim().length > 0;
   const canSubmit = cvFile !== null && jobAdReady && !loading;
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!cvFile) return;
+  type Input = { file: File; mode: JobAdMode; text: string; url: string };
+
+  async function analyze({ file, mode, text, url }: Input) {
+    // Catch oversized files before uploading them.
+    if (file.size > MAX_CV_BYTES) {
+      setErrorCode("cv_too_large");
+      return;
+    }
 
     setLoading(true);
     setErrorCode(null);
@@ -59,10 +66,10 @@ export default function Home() {
 
     try {
       const body = new FormData();
-      body.append("cv", cvFile);
+      body.append("cv", file);
       body.append("lang", locale);
-      if (jobAdMode === "text") body.append("jobAdText", jobAdText);
-      else body.append("jobAdUrl", jobAdUrl);
+      if (mode === "text") body.append("jobAdText", text);
+      else body.append("jobAdUrl", url);
 
       const res = await fetch("/api/analyze", { method: "POST", body });
       if (!res.ok || !res.body) {
@@ -84,6 +91,26 @@ export default function Home() {
       setErrorCode("unknown");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (cvFile) analyze({ file: cvFile, mode: jobAdMode, text: jobAdText, url: jobAdUrl });
+  }
+
+  /** Fills the form with the fictional demo candidate and runs the analysis. */
+  async function runDemo() {
+    try {
+      const res = await fetch(DEMO_CV_URL);
+      const file = new File([await res.blob()], DEMO_CV_NAME, { type: "application/pdf" });
+      const text = DEMO_JOB_AD[locale];
+      setCvFile(file);
+      setJobAdMode("text");
+      setJobAdText(text);
+      await analyze({ file, mode: "text", text, url: "" });
+    } catch {
+      setErrorCode("unknown");
     }
   }
 
@@ -114,20 +141,42 @@ export default function Home() {
           </div>
         </div>
         <p className="mt-2 text-zinc-600 dark:text-zinc-400">{t.tagline}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 px-4 py-3 text-sm dark:bg-zinc-900">
+          <span className="text-zinc-600 dark:text-zinc-400">{t.demoHint}</span>
+          <button
+            type="button"
+            onClick={runDemo}
+            disabled={loading}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+          >
+            {t.demoButton}
+          </button>
+          <a href={DEMO_CV_URL} target="_blank" rel="noreferrer" className="text-zinc-500 underline underline-offset-2">
+            {t.viewDemoCv}
+          </a>
+        </div>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <section>
-          <label htmlFor="cv" className="block font-medium">
-            {t.cvLabel}
-          </label>
-          <input
-            id="cv"
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
-            className="mt-2 block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-white hover:file:bg-zinc-700 dark:file:bg-zinc-100 dark:file:text-zinc-900"
-          />
+          <span className="block font-medium">{t.cvLabel}</span>
+          {/* Custom file picker so the name also shows for the demo file set from code. */}
+          <div className="mt-2 flex items-center gap-3 text-sm">
+            <label
+              htmlFor="cv"
+              className="cursor-pointer rounded-md bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700 has-[:focus-visible]:ring-2 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {t.chooseFile}
+              <input
+                id="cv"
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+                className="sr-only"
+              />
+            </label>
+            <span className="truncate text-zinc-600 dark:text-zinc-400">{cvFile?.name ?? t.noFile}</span>
+          </div>
         </section>
 
         <section>

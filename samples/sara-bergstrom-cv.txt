@@ -1,0 +1,53 @@
+Sara Bergström - Fullstack Developer
+Göteborg | sara.bergstrom@example.com | github.com/sarab-example
+(Fictional person, created as demo data for JobMatch AI.)
+
+PROFILE
+Fullstack developer with three years of professional experience building web applications in TypeScript,
+React and Node.js. Enjoys turning vague requirements into well-tested features and mentoring junior
+colleagues. Comfortable owning a feature from design discussion to production monitoring.
+
+EXPERIENCE
+Fullstack Developer, Nordlys Software AB, Göteborg (2023 - present)
+- Built and maintained a customer portal in Next.js and TypeScript used by 40,000 monthly users.
+- Designed REST and GraphQL APIs in Node.js with PostgreSQL, including schema migrations and indexing.
+- Introduced end-to-end tests with Playwright, reducing production bugs reported by support by about 30%.
+- Containerized three services with Docker and set up GitHub Actions pipelines for test and deploy.
+- Added structured logging and error tracking with Sentry, cutting time-to-diagnose for incidents.
+- Mentored two junior developers through weekly pair programming and code reviews.
+- Worked in a Scrum team of seven; facilitated retrospectives when the Scrum Master was away.
+- Wrote technical documentation and onboarding guides used by new team members.
+
+Junior Developer, Kodverket Konsult AB, Stockholm (2022 - 2023)
+- Developed React components for an e-commerce client, focusing on accessibility (WCAG 2.1 AA).
+- Wrote integration tests in Jest and fixed performance issues in product listing pages.
+- Built an internal admin tool in Python with FastAPI to manage product data imports.
+- Took part in client workshops to clarify requirements and estimate work.
+
+Summer Intern, Västra Energi, Göteborg (2021)
+- Created dashboards in Power BI and automated weekly Excel reports with Python scripts.
+
+EDUCATION
+BSc Computer Science, Chalmers University of Technology, Göteborg (2019 - 2022)
+Thesis: Comparing state management approaches in large React applications.
+Relevant courses: Algorithms and data structures, Databases, Software engineering project, Web security.
+
+SKILLS
+Languages: TypeScript, JavaScript, Python, SQL
+Frontend: React, Next.js, Tailwind CSS, accessibility (WCAG)
+Backend: Node.js, Express, FastAPI, REST, GraphQL, PostgreSQL, Redis
+Tooling: Docker, GitHub Actions, Playwright, Jest, Sentry, Git
+Cloud: basic experience with AWS (S3, Lambda) from a hobby project
+Ways of working: Scrum, code review, pair programming, trunk-based development
+
+PROJECTS
+Recipe Planner (2024): A Next.js app that plans weekly meals and generates shopping lists.
+Deployed on Vercel, uses PostgreSQL and has 200 active users among friends and family.
+Open source: contributed bug fixes to two React UI component libraries on GitHub.
+
+LANGUAGES
+Swedish (native), English (fluent, daily work language), German (basic)
+
+OTHER
+Volunteer coding instructor at a local library's "Kodklubben" for teenagers (2023 - present).
+Driving licence B.

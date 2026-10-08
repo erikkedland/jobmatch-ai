@@ -26,6 +26,8 @@ export type ErrorCode =
   | "refusal"
   | "auth"
   | "rate_limit"
+  | "too_many_analyses"
+  | "daily_budget"
   | "timeout"
   | "ai_unavailable"
   | "unknown";
@@ -35,6 +37,11 @@ export type Step = "reading_cv" | "fetching_ad" | "extracting" | "matching" | "w
 type Dictionary = {
   tagline: string;
   cvLabel: string;
+  demoButton: string;
+  chooseFile: string;
+  noFile: string;
+  demoHint: string;
+  viewDemoCv: string;
   adLabel: string;
   pasteText: string;
   fromUrl: string;
@@ -59,7 +66,12 @@ export const messages: Record<Locale, Dictionary> = {
   en: {
     tagline:
       "Upload your CV and a job ad. AI finds out how well you match, backed by evidence from your CV.",
-    cvLabel: "1. Your CV (PDF, max 5 MB)",
+    cvLabel: "1. Your CV (PDF, max 4 MB)",
+    demoButton: "Try with an example",
+    chooseFile: "Choose PDF",
+    noFile: "No file chosen",
+    demoHint: "No CV at hand? Run the analysis on a fictional candidate.",
+    viewDemoCv: "View example CV",
     adLabel: "2. The job ad",
     pasteText: "Paste text",
     fromUrl: "From URL",
@@ -88,7 +100,7 @@ export const messages: Record<Locale, Dictionary> = {
       bad_request: "The request was invalid.",
       cv_missing: "No CV file was uploaded.",
       cv_empty: "The file is empty.",
-      cv_too_large: "The file is larger than 5 MB.",
+      cv_too_large: "The file is larger than 4 MB.",
       cv_not_pdf: "The file is not a valid PDF.",
       cv_unreadable: "Could not read the PDF. It may be corrupt or password-protected.",
       cv_no_text:
@@ -112,6 +124,8 @@ export const messages: Record<Locale, Dictionary> = {
       refusal: "The AI declined to process this input.",
       auth: "The server's API key is invalid.",
       rate_limit: "Too many requests right now. Please wait a minute and try again.",
+      too_many_analyses: "You've run several analyses in a short time. Please wait a few minutes and try again.",
+      daily_budget: "The demo has reached its daily limit. Please try again tomorrow.",
       timeout: "The AI took too long to respond. Please try again.",
       ai_unavailable: "The AI service is having problems. Please try again.",
       unknown: "Something went wrong.",
@@ -120,7 +134,12 @@ export const messages: Record<Locale, Dictionary> = {
   sv: {
     tagline:
       "Ladda upp ditt CV och en jobbannons. AI tar reda på hur väl du matchar, med bevis från ditt CV.",
-    cvLabel: "1. Ditt CV (PDF, max 5 MB)",
+    cvLabel: "1. Ditt CV (PDF, max 4 MB)",
+    demoButton: "Prova med ett exempel",
+    chooseFile: "Välj PDF",
+    noFile: "Ingen fil vald",
+    demoHint: "Inget CV till hands? Kör analysen på en påhittad kandidat.",
+    viewDemoCv: "Visa exempel-CV",
     adLabel: "2. Jobbannonsen",
     pasteText: "Klistra in text",
     fromUrl: "Från länk",
@@ -149,7 +168,7 @@ export const messages: Record<Locale, Dictionary> = {
       bad_request: "Förfrågan var ogiltig.",
       cv_missing: "Inget CV laddades upp.",
       cv_empty: "Filen är tom.",
-      cv_too_large: "Filen är större än 5 MB.",
+      cv_too_large: "Filen är större än 4 MB.",
       cv_not_pdf: "Filen är inte en giltig PDF.",
       cv_unreadable: "Kunde inte läsa PDF:en. Den kan vara skadad eller lösenordsskyddad.",
       cv_no_text:
@@ -173,6 +192,8 @@ export const messages: Record<Locale, Dictionary> = {
       refusal: "AI:n avböjde att behandla innehållet.",
       auth: "Serverns API-nyckel är ogiltig.",
       rate_limit: "För många förfrågningar just nu. Vänta en minut och försök igen.",
+      too_many_analyses: "Du har kört flera analyser på kort tid. Vänta några minuter och försök igen.",
+      daily_budget: "Demon har nått sin dagliga gräns. Försök igen i morgon.",
       timeout: "AI:n tog för lång tid på sig. Försök igen.",
       ai_unavailable: "AI-tjänsten har problem. Försök igen.",
       unknown: "Något gick fel.",

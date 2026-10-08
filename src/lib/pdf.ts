@@ -1,7 +1,7 @@
 import { extractText, getDocumentProxy } from "unpdf";
 import { AppError } from "./i18n";
+import { MAX_CV_BYTES } from "./limits";
 
-export const MAX_CV_BYTES = 5 * 1024 * 1024; // 5 MB
 const MIN_TEXT_CHARS = 200;
 
 /** Checks the "%PDF-" magic bytes instead of trusting the file extension. */
