@@ -1,8 +1,10 @@
 # JobMatch AI
 
+[![CI](https://github.com/erikkedland/jobmatch-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/erikkedland/jobmatch-ai/actions/workflows/ci.yml)
+
 **Upload your CV and a job ad. An AI pipeline assesses how well you match each requirement, quotes the CV as evidence, and writes tailored CV tips and a cover letter that never claims skills you don't have.**
 
-**Live demo:** _coming soon_ · Click **"Try with an example"** to run it on a fictional candidate without uploading anything.
+**Live demo: [jobmatch-ai-complyai1.vercel.app](https://jobmatch-ai-complyai1.vercel.app)** · Click **"Try with an example"** to run it on a fictional candidate without uploading anything.
 
 ![Results: a match score, a summary, and each requirement marked Met, Partial or Gap with a quote from the CV](docs/results.jpg)
 
